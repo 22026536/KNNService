@@ -34,8 +34,6 @@ df_user_rating["Rating"] = df_user_rating["Rating"].apply(lambda x: 1 if x >= 7 
 animes_users = df_user_rating.pivot(index="User_id", columns="Anime_id", values="Rating").fillna(0)
 mat_anime = csr_matrix(animes_users.values)
 
-print("Danh sách user_id có trong animes_users.index:", animes_users.index.tolist())
-
 # Bước 2: Huấn luyện mô hình KNN để tìm các người dùng tương tự
 model = NearestNeighbors(metric='cosine', algorithm='brute', n_neighbors=5)
 model.fit(mat_anime)
