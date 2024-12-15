@@ -123,4 +123,4 @@ import uvicorn
 import os
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 4000))
-    uvicorn.run("knn2:app", host="0.0.0.0", port=port)
+    uvicorn.run("knn:app", host="0.0.0.0", port=port)
