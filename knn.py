@@ -65,7 +65,7 @@ def jsonable(data):
 # API POST để gợi ý anime dựa vào người dùng
 from collections import Counter
 
-@app.post("/")
+@app.post("/knn")
 async def recommend(request: Request):
     data = await request.json()
     user_id = data.get("user_id")
@@ -105,7 +105,7 @@ async def recommend(request: Request):
     return jsonable(recommendations)
 
 # API POST để gợi ý anime dựa vào anime vừa xem
-@app.post("/anime")
+@app.post("/knn/anime")
 async def recommendByAnime(request: Request):
     data = await request.json()
     anime_id = str(data.get("anime_id"))
