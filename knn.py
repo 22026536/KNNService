@@ -13,10 +13,10 @@ from fastapi.middleware.cors import CORSMiddleware
 # Thêm middleware CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://anime-fawn-five.vercel.app"],  # Cho phép origin cụ thể
+    allow_origins="*",  # Cho phép origin cụ thể
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods="*",
+    allow_headers="*",
 )
 
 # Kết nối MongoDB
@@ -108,7 +108,7 @@ async def recommend(request: Request):
 @app.post("/knn/anime")
 async def recommendByAnime(request: Request):
     data = await request.json()
-    anime_id = str(data.get("anime_id"))
+    anime_id = data.get("anime_id")
     n = data.get("n", 10)  # Số lượng gợi ý, mặc định là 10
 
     if anime_id is None:
