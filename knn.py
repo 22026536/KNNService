@@ -38,18 +38,27 @@ mat_anime = csr_matrix(animes_users.values)
 model = NearestNeighbors(metric='cosine', algorithm='brute', n_neighbors=5)
 model.fit(mat_anime)
 
+
+# Pivot bảng để tạo ma trận sparse
+animes_users2 = df_user_rating.pivot(index="Anime_id", columns="User_id", values="Rating").fillna(0)
+mat_anime2 = csr_matrix(animes_users2.values)
+
+# Huấn luyện mô hình KNN
+model2 = NearestNeighbors(metric='cosine', algorithm='brute', n_neighbors=10)
+model2.fit(mat_anime2)
+
 # Hàm gợi ý anime theo anime_id
-def recommender_by_id(anime_id, mat_anime, n):
-    if anime_id not in animes_users.index:
+def recommender_by_id(anime_id, mat_anime2, n):
+    if anime_id not in animes_users2.index:
         return {"error": "Anime ID không tồn tại"}
 
-    idx = animes_users.index.get_loc(anime_id)
-    distances, indices = model.kneighbors(mat_anime[idx], n_neighbors=n)
+    idx = animes_users2.index.get_loc(anime_id)
+    distances, indices = model.kneighbors(mat_anime2[idx], n_neighbors=n)
     recommendations = []
 
     for i in indices.flatten():
         if i != idx:  # Loại bỏ anime hiện tại
-            anime_data = df_anime[df_anime['Anime_id'] == animes_users.index[i]].iloc[0].to_dict()
+            anime_data = df_anime[df_anime['Anime_id'] == animes_users2.index[i]].iloc[0].to_dict()
             recommendations.append(anime_data)
     return recommendations
 
