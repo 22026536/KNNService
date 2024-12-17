@@ -65,7 +65,7 @@ model_anime.fit(mat_anime)
 
 # Huấn luyện mô hình KNN cho người dùng tương tự
 model_user = NearestNeighbors(metric='cosine', algorithm='brute', n_neighbors=5)
-model_user.fit(mat_anime.T)  # Ma trận chuyển vị để tìm người dùng tương tự
+model_user.fit(mat_anime.T)  # Ma trận chuyển vị để tìm người dùng tương tự .
 
 # Hàm chuyển đổi ObjectId thành JSON serializable
 def jsonable(data):
