@@ -56,18 +56,6 @@ def jsonable(data):
         return str(data)
     return data
 
-import numpy as np
-
-# Hàm tính khoảng cách cosine giữa hai vector
-def cosine_distance(vec1, vec2):
-    dot_product = np.dot(vec1, vec2)
-    norm_vec1 = np.linalg.norm(vec1)
-    norm_vec2 = np.linalg.norm(vec2)
-    if norm_vec1 == 0 or norm_vec2 == 0:  # Xử lý trường hợp vector rỗng
-        return 1  # Khoảng cách lớn nhất
-    return 1 - dot_product / (norm_vec1 * norm_vec2)  # Cosine distance (1 - Cosine similarity)
-
-
 ##################################
 # API 1: Gợi ý anime dựa trên Anime_id
 ##################################
