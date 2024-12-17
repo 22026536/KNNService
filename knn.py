@@ -39,11 +39,11 @@ animes_users = df_user_rating.pivot(index="Anime_id", columns="User_id", values=
 mat_anime = csr_matrix(animes_users.values)
 
 # Huấn luyện mô hình KNN cho Anime tương tự
-model_anime = NearestNeighbors(metric='cosine', algorithm='brute', n_neighbors=20)
+model_anime = NearestNeighbors(metric='cosine', algorithm='brute', n_neighbors=10)
 model_anime.fit(mat_anime)
 
 # Huấn luyện mô hình KNN cho người dùng tương tự
-model_user = NearestNeighbors(metric='cosine', algorithm='brute', n_neighbors=10)
+model_user = NearestNeighbors(metric='cosine', algorithm='brute', n_neighbors=5)
 model_user.fit(mat_anime.T)  # Ma trận chuyển vị để tìm người dùng tương tự
 
 # Hàm chuyển đổi ObjectId thành JSON serializable
@@ -59,10 +59,10 @@ def jsonable(data):
 ##################################
 # API 1: Gợi ý anime dựa trên Anime_id
 ##################################
-@app.post("/recommend_by_anime")
+@app.post("/knn/anime")
 async def recommend_by_anime(request: Request):
     data = await request.json()
-    anime_id = str(data.get("anime_id"))
+    anime_id = data.get("anime_id")
     n = data.get("n", 10)  # Số lượng gợi ý, mặc định là 10
 
     if anime_id not in animes_users.index:
@@ -84,7 +84,7 @@ async def recommend_by_anime(request: Request):
 ##################################
 # API 2: Gợi ý anime dựa trên User_id
 ##################################
-@app.post("/recommend_by_user")
+@app.post("/knn")
 async def recommend_by_user(request: Request):
     data = await request.json()
     user_id = data.get("user_id")
@@ -123,5 +123,5 @@ async def recommend_by_user(request: Request):
 
 # Chạy server
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8000))  # Render sẽ cung cấp cổng trong biến PORT
+    port = int(os.getenv("PORT", 4003))  # Render sẽ cung cấp cổng trong biến PORT
     uvicorn.run("knn:app", host="0.0.0.0", port=port, reload=True)
