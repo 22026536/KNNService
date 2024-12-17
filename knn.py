@@ -29,6 +29,8 @@ df_anime = pd.DataFrame(list(db["Anime"].find()))
 
 # Xử lý dữ liệu UserRating
 df_user_rating["Rating"] = df_user_rating["Rating"].apply(lambda x: 1 if x >= 7 else (-1 if x <= 6 else 0))
+duplicates = df_user_rating[df_user_rating.duplicated(subset=["User_id", "Anime_id"], keep=False)]
+df_user_rating = df_user_rating.drop_duplicates(subset=["User_id", "Anime_id"], keep="first")
 
 # Tạo ma trận animes_users
 animes_users = df_user_rating.pivot(index="User_id", columns="Anime_id", values="Rating").fillna(0)
