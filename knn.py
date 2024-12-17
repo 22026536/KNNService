@@ -9,6 +9,27 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import os
 
+# Hàm tính khoảng cách cosine giữa hai vector
+def cosine_distance(vec1, vec2):
+    dot_product = np.dot(vec1, vec2)
+    norm_vec1 = np.linalg.norm(vec1)
+    norm_vec2 = np.linalg.norm(vec2)
+    if norm_vec1 == 0 or norm_vec2 == 0:  # Xử lý trường hợp vector rỗng
+        return 1  # Khoảng cách lớn nhất
+    return 1 - dot_product / (norm_vec1 * norm_vec2)  # Cosine distance (1 - Cosine similarity)
+  
+# Hàm tìm k láng giềng gần nhất
+def find_k_nearest_neighbors(matrix, target_vector, k):
+    distances = []
+    for idx, vec in enumerate(matrix):
+        dist = cosine_distance(target_vector, vec)
+        distances.append((idx, dist))
+    # Sắp xếp khoảng cách và lấy k láng giềng gần nhất
+    distances = sorted(distances, key=lambda x: x[1])
+    return distances[:k]
+
+
+
 # Khởi tạo app
 app = FastAPI()
 
@@ -39,7 +60,7 @@ animes_users = df_user_rating.pivot(index="Anime_id", columns="User_id", values=
 mat_anime = csr_matrix(animes_users.values)
 
 # Huấn luyện mô hình KNN cho Anime tương tự
-model_anime = NearestNeighbors(metric='cosine', algorithm='brute', n_neighbors=10)
+model_anime = NearestNeighbors(metric='cosine', algorithm='brute', n_neighbors=5)
 model_anime.fit(mat_anime)
 
 # Huấn luyện mô hình KNN cho người dùng tương tự
