@@ -91,7 +91,7 @@ async def recommend_by_user(request: Request):
     n = data.get("n", 10)  # Số lượng gợi ý, mặc định là 10
 
     if user_id not in animes_users.columns:
-        return {"error": f"User ID {user_id} không tồn tại trong dữ liệu"}
+        return {"error": f"User ID {user_id} không tồn tại trong dữ liệu."}
 
     # Tìm các người dùng tương tự
     user_idx = animes_users.columns.get_loc(user_id)
