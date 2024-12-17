@@ -5,15 +5,17 @@ from sklearn.neighbors import NearestNeighbors
 from pymongo import MongoClient
 from bson import ObjectId
 from collections import Counter
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+import os
 
 # Khởi tạo app
 app = FastAPI()
 
-# Middleware CORS
-from fastapi.middleware.cors import CORSMiddleware
+# Thêm middleware CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Cho phép origin cụ thể
+    allow_origins=["*"],  # Cho phép tất cả origin
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -24,82 +26,102 @@ client = MongoClient("mongodb+srv://sangvo22026526:5anG15122003@cluster0.rcd65hj
 db = client["anime_tango2"]
 
 # Tải dữ liệu từ MongoDB
-df_favorites = pd.DataFrame(list(db["UserFavorites"].find()))
 df_user_rating = pd.DataFrame(list(db["UserRating"].find()))
 df_anime = pd.DataFrame(list(db["Anime"].find()))
+duplicates = df_user_rating[df_user_rating.duplicated(subset=["User_id", "Anime_id"], keep=False)]
+df_user_rating = df_user_rating.drop_duplicates(subset=["User_id", "Anime_id"], keep="first")
 
-# Chuyển đổi ObjectId
-def convert_id(df, column):
-    df[column] = df[column].astype(str)
-convert_id(df_favorites, '_id')
-convert_id(df_anime, '_id')
+# Xử lý dữ liệu UserRating
+df_user_rating["Rating"] = df_user_rating["Rating"].apply(lambda x: 1 if x >= 7 else (-1 if x <= 6 else 0))
 
-# Gợi ý anime theo anime_id
-user_anime_matrix = pd.DataFrame([
-    (user["User_id"], anime_id, 1)
-    for user in df_favorites.to_dict(orient="records")
-    for anime_id in user["favorites"]
-], columns=["User_id", "Anime_id", "Rating"])
+# Tạo ma trận animes_users (cho cả hai API)
+animes_users = df_user_rating.pivot(index="Anime_id", columns="User_id", values="Rating").fillna(0)
+mat_anime = csr_matrix(animes_users.values)
 
-animes_users_1 = user_anime_matrix.pivot(index="Anime_id", columns="User_id", values="Rating").fillna(0)
-mat_anime_1 = csr_matrix(animes_users_1.values)
-model_1 = NearestNeighbors(metric='cosine', algorithm='brute', n_neighbors=20).fit(mat_anime_1)
+# Huấn luyện mô hình KNN cho Anime tương tự
+model_anime = NearestNeighbors(metric='cosine', algorithm='brute', n_neighbors=20)
+model_anime.fit(mat_anime)
 
-def recommender_by_id(anime_id, mat_anime, n):
-    if anime_id not in animes_users_1.index:
-        return {"error": "Anime ID không tồn tại"}
-    idx = animes_users_1.index.get_loc(anime_id)
-    distances, indices = model_1.kneighbors(mat_anime[idx], n_neighbors=n)
-    return [df_anime[df_anime['Anime_id'] == animes_users_1.index[i]].iloc[0].to_dict()
-            for i in indices.flatten() if i != idx]
+# Huấn luyện mô hình KNN cho người dùng tương tự
+model_user = NearestNeighbors(metric='cosine', algorithm='brute', n_neighbors=10)
+model_user.fit(mat_anime.T)  # Ma trận chuyển vị để tìm người dùng tương tự
 
-# API 1: Gợi ý anime theo anime_id
-@app.post("/recommend_by_anime_id")
+# Hàm chuyển đổi ObjectId thành JSON serializable
+def jsonable(data):
+    if isinstance(data, list):
+        return [jsonable(item) for item in data]
+    elif isinstance(data, dict):
+        return {key: jsonable(value) for key, value in data.items()}
+    elif isinstance(data, ObjectId):
+        return str(data)
+    return data
+
+##################################
+# API 1: Gợi ý anime dựa trên Anime_id
+##################################
+@app.post("/recommend_by_anime")
 async def recommend_by_anime(request: Request):
     data = await request.json()
     anime_id = str(data.get("anime_id"))
-    n = data.get("n", 10)
-    if not anime_id:
-        return {"error": "Vui lòng cung cấp animeId"}
-    return recommender_by_id(anime_id, mat_anime_1, n)
+    n = data.get("n", 10)  # Số lượng gợi ý, mặc định là 10
 
-# Gợi ý anime theo user_id
-df_user_rating["Rating"] = df_user_rating["Rating"].apply(lambda x: 1 if x >= 7 else (-1 if x <= 6 else 0))
-animes_users_2 = df_user_rating.pivot(index="User_id", columns="Anime_id", values="Rating").fillna(0)
-mat_anime_2 = csr_matrix(animes_users_2.values)
-model_2 = NearestNeighbors(metric='cosine', algorithm='brute', n_neighbors=10).fit(mat_anime_2)
+    if anime_id not in animes_users.index:
+        return {"error": "Anime ID không tồn tại"}
 
-@app.post("/recommend_by_user_id")
+    # Tìm các anime tương tự
+    idx = animes_users.index.get_loc(anime_id)
+    distances, indices = model_anime.kneighbors(mat_anime[idx], n_neighbors=n + 1)
+
+    # Gợi ý các anime
+    recommendations = []
+    for i in indices.flatten():
+        if i != idx:  # Loại bỏ anime hiện tại
+            anime_data = df_anime[df_anime['Anime_id'] == animes_users.index[i]].iloc[0].to_dict()
+            recommendations.append(anime_data)
+    return jsonable(recommendations)
+
+
+##################################
+# API 2: Gợi ý anime dựa trên User_id
+##################################
+@app.post("/recommend_by_user")
 async def recommend_by_user(request: Request):
     data = await request.json()
     user_id = data.get("user_id")
-    n = data.get("n", 10)
-    if user_id not in animes_users_2.index:
+    n = data.get("n", 10)  # Số lượng gợi ý, mặc định là 10
+
+    if user_id not in animes_users.columns:
         return {"error": f"User ID {user_id} không tồn tại trong dữ liệu"}
-    
-    user_idx = animes_users_2.index.get_loc(user_id)
-    distances, indices = model_2.kneighbors(mat_anime_2[user_idx], n_neighbors=len(animes_users_2))
+
+    # Tìm các người dùng tương tự
+    user_idx = animes_users.columns.get_loc(user_id)
+    distances, indices = model_user.kneighbors(mat_anime.T[user_idx], n_neighbors=len(animes_users.columns))
+
+    # Đếm tần suất các anime từ người dùng tương tự
     anime_counter = Counter()
-    user_anime = set(animes_users_2.iloc[user_idx][animes_users_2.iloc[user_idx] != 0].index)
 
     for i in indices.flatten():
-        if i != user_idx:
-            similar_user = animes_users_2.iloc[i]
+        if i != user_idx:  # Loại bỏ chính người dùng
+            similar_user = animes_users.iloc[:, i]
             for anime_id, rating in similar_user.items():
-                if rating == 1:
+                if rating == 1:  # Chỉ xét anime có rating >= 7
                     anime_counter[anime_id] += 1
-    anime_counter = {anime_id: count for anime_id, count in anime_counter.items() if anime_id not in user_anime}
-    sorted_anime = sorted(anime_counter.items(), key=lambda x: x[1], reverse=True)
 
+    # Loại bỏ anime mà người dùng hiện tại đã xem
+    user_anime = set(animes_users.loc[:, user_id][animes_users.loc[:, user_id] != 0].index)
+    anime_counter = {anime_id: count for anime_id, count in anime_counter.items() if anime_id not in user_anime}
+
+    # Sắp xếp và lấy top `n` anime
+    sorted_anime = sorted(anime_counter.items(), key=lambda x: x[1], reverse=True)
     recommendations = []
     for anime_id, _ in sorted_anime[:n]:
         anime_data = df_anime[df_anime['Anime_id'] == anime_id].iloc[0].to_dict()
         recommendations.append(anime_data)
-    return recommendations
+
+    return jsonable(recommendations)
+
 
 # Chạy server
-import uvicorn
-import os
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
+    port = int(os.getenv("PORT", 8000))  # Render sẽ cung cấp cổng trong biến PORT
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
