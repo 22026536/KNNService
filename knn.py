@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 import pandas as pd
 from scipy.sparse import csr_matrix
+from sklearn.neighbors import NearestNeighbors
 from pymongo import MongoClient
 from bson import ObjectId
 from collections import Counter
@@ -37,26 +38,13 @@ df_user_rating["Rating"] = df_user_rating["Rating"].apply(lambda x: 1 if x >= 7 
 animes_users = df_user_rating.pivot(index="Anime_id", columns="User_id", values="Rating").fillna(0)
 mat_anime = csr_matrix(animes_users.values)
 
-# Hàm tính khoảng cách cosine giữa hai vector
-def cosine_distance(vec1, vec2):
-    dot_product = np.dot(vec1, vec2)
-    norm_vec1 = np.linalg.norm(vec1)
-    norm_vec2 = np.linalg.norm(vec2)
-    if norm_vec1 == 0 or norm_vec2 == 0:  # Xử lý trường hợp vector rỗng
-        return 1  # Khoảng cách lớn nhất
-    return 1 - dot_product / (norm_vec1 * norm_vec2)  # Cosine distance (1 - Cosine similarity)
+# Huấn luyện mô hình KNN cho Anime tương tự
+model_anime = NearestNeighbors(metric='cosine', algorithm='brute', n_neighbors=10)
+model_anime.fit(mat_anime)
 
-# Hàm tìm k láng giềng gần nhất
-def find_k_nearest_neighbors(matrix, target_vector, k):
-    distances = []
-    for idx, vec in enumerate(matrix):
-        dist = cosine_distance(target_vector, vec)
-        distances.append((idx, dist))
-    # Sắp xếp khoảng cách và lấy k láng giềng gần nhất
-    distances = sorted(distances, key=lambda x: x[1])
-    return distances[:k]
-
-
+# Huấn luyện mô hình KNN cho người dùng tương tự
+model_user = NearestNeighbors(metric='cosine', algorithm='brute', n_neighbors=5)
+model_user.fit(mat_anime.T)  # Ma trận chuyển vị để tìm người dùng tương tự
 
 # Hàm chuyển đổi ObjectId thành JSON serializable
 def jsonable(data):
@@ -70,7 +58,14 @@ def jsonable(data):
 
 import numpy as np
 
-
+# Hàm tính khoảng cách cosine giữa hai vector
+def cosine_distance(vec1, vec2):
+    dot_product = np.dot(vec1, vec2)
+    norm_vec1 = np.linalg.norm(vec1)
+    norm_vec2 = np.linalg.norm(vec2)
+    if norm_vec1 == 0 or norm_vec2 == 0:  # Xử lý trường hợp vector rỗng
+        return 1  # Khoảng cách lớn nhất
+    return 1 - dot_product / (norm_vec1 * norm_vec2)  # Cosine distance (1 - Cosine similarity)
 
 
 ##################################
@@ -85,20 +80,16 @@ async def recommend_by_anime(request: Request):
     if anime_id not in animes_users.index:
         return {"error": "Anime ID không tồn tại"}
 
-    # Lấy vector của anime hiện tại
+    # Tìm các anime tương tự
     idx = animes_users.index.get_loc(anime_id)
-    target_vector = mat_anime[idx].toarray()[0]
-
-    # Tìm k láng giềng gần nhất
-    neighbors = find_k_nearest_neighbors(mat_anime.toarray(), target_vector, n + 1)
+    distances, indices = model_anime.kneighbors(mat_anime[idx], n_neighbors=n + 1)
 
     # Gợi ý các anime
     recommendations = []
-    for neighbor_idx, _ in neighbors:
-        if neighbor_idx != idx:  # Loại bỏ anime hiện tại
-            anime_data = df_anime[df_anime['Anime_id'] == animes_users.index[neighbor_idx]].iloc[0].to_dict()
+    for i in indices.flatten():
+        if i != idx:  # Loại bỏ anime hiện tại
+            anime_data = df_anime[df_anime['Anime_id'] == animes_users.index[i]].iloc[0].to_dict()
             recommendations.append(anime_data)
-
     return jsonable(recommendations)
 
 
@@ -112,24 +103,20 @@ async def recommend_by_user(request: Request):
     n = data.get("n", 10)  # Số lượng gợi ý, mặc định là 10
 
     if user_id not in animes_users.columns:
-        return {"error": f"User ID {user_id} không tồn tại trong dữ liệu"}
+        return {"error": f"User ID {user_id} không tồn tại trong dữ liệu."}
 
-    # Lấy vector của user hiện tại
+    # Tìm các người dùng tương tự
     user_idx = animes_users.columns.get_loc(user_id)
-    target_vector = mat_anime.T[user_idx].toarray()[0]
-
-    # Tìm k người dùng tương tự
-    neighbors = find_k_nearest_neighbors(mat_anime.T.toarray(), target_vector, len(animes_users.columns))
+    distances, indices = model_user.kneighbors(mat_anime.T[user_idx], n_neighbors=len(animes_users.columns))
 
     # Đếm tần suất các anime từ người dùng tương tự
     anime_counter = Counter()
 
-    for neighbor_idx, _ in neighbors:
-        if neighbor_idx != user_idx:  # Loại bỏ chính người dùng
-            similar_user = mat_anime.T[neighbor_idx].toarray()[0]
-            for anime_idx, rating in enumerate(similar_user):
+    for i in indices.flatten():
+        if i != user_idx:  # Loại bỏ chính người dùng
+            similar_user = animes_users.iloc[:, i]
+            for anime_id, rating in similar_user.items():
                 if rating == 1:  # Chỉ xét anime có rating >= 7
-                    anime_id = animes_users.index[anime_idx]
                     anime_counter[anime_id] += 1
 
     # Loại bỏ anime mà người dùng hiện tại đã xem
