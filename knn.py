@@ -8,23 +8,23 @@ from collections import Counter
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import os
+import numpy as np
 
-# Hàm tính khoảng cách cosine giữa hai vector
 def cosine_distance(vec1, vec2):
     dot_product = np.dot(vec1, vec2)
     norm_vec1 = np.linalg.norm(vec1)
     norm_vec2 = np.linalg.norm(vec2)
-    if norm_vec1 == 0 or norm_vec2 == 0:  # Xử lý trường hợp vector rỗng
-        return 1  # Khoảng cách lớn nhất
-    return 1 - dot_product / (norm_vec1 * norm_vec2)  # Cosine distance (1 - Cosine similarity)
+    if norm_vec1 == 0 or norm_vec2 == 0:  
+        return 1 
+    return 1 - dot_product / (norm_vec1 * norm_vec2)  # Cosine distance (1 - Cosine similarity).
   
-# Hàm tìm k láng giềng gần nhất
+
 def find_k_nearest_neighbors(matrix, target_vector, k):
     distances = []
     for idx, vec in enumerate(matrix):
         dist = cosine_distance(target_vector, vec)
         distances.append((idx, dist))
-    # Sắp xếp khoảng cách và lấy k láng giềng gần nhất
+    
     distances = sorted(distances, key=lambda x: x[1])
     return distances[:k]
 
