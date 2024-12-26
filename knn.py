@@ -95,7 +95,11 @@ async def recommend_by_anime(request: Request):
     return jsonable(recommendations)
 
 
-
+anime_collection = db['Anime']
+def get_anime_data():
+    anime_data = list(anime_collection.find())
+    return pd.DataFrame(anime_data)
+anime_df = get_anime_data()
 ##################################
 # API 2: Gợi ý anime dựa trên User_id
 ##################################
@@ -104,6 +108,18 @@ async def recommend_by_user(request: Request):
     data = await request.json()
     user_id = data.get("user_id")
     n = data.get("n", 10)
+
+    # Lấy danh sách anime mà người dùng đã đánh giá
+    rated_anime_ids = df_user_rating[df_user_rating['User_id'] == user_id]['Anime_id'].tolist()
+
+    # Nếu người dùng đánh giá ít anime, sử dụng một phương pháp thay thế
+    if len(rated_anime_ids) < 10:
+        # Gợi ý anime phổ biến
+        if anime_df.empty:
+            return {"recommended_anime": []}  # Trả về danh sách rỗng nếu không có dữ liệu anime
+        popular_anime = anime_df.sort_values(by='Favorites', ascending=False).head(n)[['Anime_id', 'Name','English name','Score', 'Genres', 'Synopsis','Type','Episodes','Duration', 'Favorites','Scored By','Members','Image URL','Old', 'JapaneseLevel']]
+        return {"recommended_anime": popular_anime.to_dict(orient="records")}
+
 
     if user_id not in animes_users.columns:
         return {"error": f"User ID {user_id} không tồn tại trong dữ liệu."}
