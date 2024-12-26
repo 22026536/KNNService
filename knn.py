@@ -10,13 +10,15 @@ import os
 import numpy as np
 
 def cosine_distance(vec1, vec2):
+    vec1 = vec1.toarray().flatten()  # Chuyển đổi từ sparse sang dense (nếu cần)
+    vec2 = vec2.toarray().flatten()  # Chuyển đổi từ sparse sang dense (nếu cần)
     dot_product = np.dot(vec1, vec2)
     norm_vec1 = np.linalg.norm(vec1)
     norm_vec2 = np.linalg.norm(vec2)
     if norm_vec1 == 0 or norm_vec2 == 0:  
         return 1 
     return 1 - dot_product / (norm_vec1 * norm_vec2)  # Cosine distance (1 - Cosine similarity).
-  
+
 
 def find_k_nearest_neighbors(matrix, target_vector, k):
     distances = []
