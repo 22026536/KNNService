@@ -110,7 +110,7 @@ async def recommend_by_user(request: Request):
     # Tìm các người dùng tương tự
     user_idx = animes_users.columns.get_loc(user_id)
     target_vector = mat_anime[:, user_idx]
-    neighbors = find_k_nearest_neighbors(mat_anime.T, target_vector, len(animes_users.columns))
+    neighbors = find_k_nearest_neighbors(mat_anime.T, target_vector,5)
 
     # Đếm tần suất các anime từ người dùng tương tự
     anime_counter = Counter()
