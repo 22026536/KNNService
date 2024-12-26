@@ -10,8 +10,8 @@ import os
 import numpy as np
 
 def cosine_distance(vec1, vec2):
-    vec1 = vec1.toarray().flatten()  # Chuyển đổi từ sparse sang dense (nếu cần)
-    vec2 = vec2.toarray().flatten()  # Chuyển đổi từ sparse sang dense (nếu cần)
+    vec1 = vec1.toarray().flatten()  
+    vec2 = vec2.toarray().flatten()  
     dot_product = np.dot(vec1, vec2)
     norm_vec1 = np.linalg.norm(vec1)
     norm_vec2 = np.linalg.norm(vec2)
@@ -112,7 +112,7 @@ async def recommend_by_user(request: Request):
     # Tìm các người dùng tương tự
     user_idx = animes_users.columns.get_loc(user_id)
     target_vector = mat_anime[:, user_idx]
-    neighbors = find_k_nearest_neighbors(mat_anime.T, target_vector,5)
+    neighbors = find_k_nearest_neighbors(mat_anime.T, target_vector,10)
 
     # Đếm tần suất các anime từ người dùng tương tự
     anime_counter = Counter()
